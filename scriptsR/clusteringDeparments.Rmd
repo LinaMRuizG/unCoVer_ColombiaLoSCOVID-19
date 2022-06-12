@@ -1,0 +1,119 @@
+---
+title: "ClusteringDeparments"
+author: "Lina M. Ruiz G."
+date: "4/20/2022"
+output: html_document
+---
+http://www.wvview.org/spatial_analytics/Visualizing_Spatial_Data/_site/Visualize_Spatial_Data.html DOCUMENTATION FOR COLOR PALETTE
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tmap)
+library(sf)
+library(dplyr)
+library(RColorBrewer)
+```
+
+```{r}
+  library(tmaptools)
+library(rgdal)
+library(sf)
+library(raster)
+library(OpenStreetMap)
+```
+
+
+```{r}
+m_map <- st_read("/home/lina/Documents/UnCover/uncoverP1LoS/uncoverP1LoS_5AFTf/departamento/Colombia_COVID19_Coronavirus_Departamento.shp")
+m_map$DPTO<- as.integer(m_map$DPTO)
+```
+```{r}
+m_join <- read.csv("/home/lina/Documents/UnCover/uncoverP1LoS/uncoverP1LoS_5AFTf/depClusters.csv")
+m_join$DPTO<- as.integer(m_join$DPTO)
+m_join$Hospital.LoS.DPTO.clusters <- factor(m_join$Hospital.LoS.DPTO.clusters,levels=c("2-3","4-5","6-7", "7.1-9","15"),ordered = TRUE)
+m_join$ICU.LoS.DPTO.clusters <- factor(m_join$ICU.LoS.DPTO.clusters,levels=c("2-3","4-5", "5.1-7","8-9"),ordered = TRUE)
+```
+
+
+```{r}
+m_map <- m_map |> left_join(m_join,by="DPTO")
+```
+
+
+```{r}
+m_map2 <- 
+  m_map |> 
+  tm_shape() +
+  tm_polygons("ICU.LoS.DPTO.clusters",title='ICU (BP2) LoS clusters',palette=get_brewer_pal(palette="OrRd", n=5, plot=FALSE)) +
+  tm_layout(#aes.palette = list(seq = "-RdYlGn"),
+          main.title.position = "center",
+          legend.title.size = 1.5,
+          legend.text.size = 0.8
+          )  
+
+
+tmap_save(m_map2, "mapa_LoSICUDPTOc.pdf")
+tmap_save(m_map2, "mapa_LoSICUDPTOc.png")
+```
+
+```{r}
+m_map2 <- 
+  m_map |> 
+  tm_shape() +
+tm_polygons("ICU.LoS.DPTO",palette = "-RdYlGn",title='UCI LoS',palette=get_brewer_pal(palette="OrRd", n=5, plot=FALSE)) +
+   # tm_text(text = "MPIO_NOMBR") +
+tm_grid() +
+  tm_scale_bar(position=c("right", "bottom")) +
+  tm_compass(type="arrow", position=c("left", "top")) +
+tm_layout(#aes.palette = list(seq = "-RdYlGn"),
+          main.title.position = "center",
+          legend.title.size = 1.5,
+          legend.text.size = 0.8
+          )  
+
+
+tmap_save(m_map2, "mapa_LoSICUDPTO.pdf")
+tmap_save(m_map2, "mapa_LoSICUDPTO.png")
+```
+
+```{r}
+m_map2 <- 
+  m_map |> 
+  tm_shape() +
+  tm_polygons("Hospital.LoS.DPTO.clusters",title='Hospital LoS clusters',palette=get_brewer_pal(palette="Blues", n=5, plot=FALSE)) +
+tm_layout(#aes.palette = list(seq = "-RdYlGn"),
+          main.title.position = "center",
+          legend.title.size = 1.5,
+          legend.text.size = 0.8
+          )  
+
+
+tmap_save(m_map2, "mapa_LoSHDPTOc.pdf")
+tmap_save(m_map2, "mapa_LoSHDPTOc.png")
+
+```
+
+
+```{r}
+m_map2 <- 
+  m_map |> 
+  tm_shape() +
+tm_polygons("Hospital.LoS.DPTO",palette = "-RdYlGn",title='Hospital LoS',palette=get_brewer_pal(palette="Blues", n=5, plot=FALSE)) +
+   # tm_text(text = "MPIO_NOMBR") +
+tm_grid() +
+  tm_scale_bar(position=c("right", "bottom")) +
+  tm_compass(type="arrow", position=c("left", "top")) +
+tm_layout(#aes.palette = list(seq = "-RdYlGn"),
+          main.title.position = "center",
+          legend.title.size = 1.5,
+          legend.text.size = 0.8
+          )  
+
+
+tmap_save(m_map2, "mapa_LoSHDPTO.pdf")
+tmap_save(m_map2, "mapa_LoSHDPTO.png")
+```

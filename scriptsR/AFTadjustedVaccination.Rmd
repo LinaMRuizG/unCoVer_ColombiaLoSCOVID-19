@@ -1,0 +1,524 @@
+---
+title: "AFTs_frequentist"
+author: "Lina M. Ruiz G."
+date: "3/24/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(dplyr)
+library(survival)
+library(dplyr)
+library(survminer)
+library(naniar)
+library(MASS)
+library(flexsurv)
+library(tidyverse)
+library(stargazer)
+library(pander)
+```
+
+# data
+
+```{r}
+
+data <- read.csv("/home/lina/Documents/unCoVer/uncoverP1LoS/dataBases/dataBaseAnalysis13.csv")
+data<-data %>% filter( tRD <100)
+data$AgeG <- case_when(data$AgeYears > 1 & data$AgeYears <= 50 ~ "1",
+                         data$AgeYears > 50 & data$AgeYears <= 64 ~ "2",
+                         data$AgeYears > 64 & data$AgeYears <= 74 ~ "3",
+                         data$AgeYears > 74 ~ "4")
+data$outcome <- rep(1,nrow(data))
+```
+
+```{r}
+data_countHRD <- data %>% filter( X1BedPathway == 1 | X1BedPathway == 2)
+data_countICURD <- data %>% filter( X1BedPathway == 3 | X1BedPathway == 4)
+data_countHICURD <- data %>% filter( X1BedPathway == 5 | X1BedPathway == 7)
+table(data_countHRD$AgeG)
+table(data_countICURD$AgeG)
+table(data_countHICURD$AgeG)
+nrow(data_countHRD)
+nrow(data_countICURD)
+nrow(data_countHICURD)
+```
+
+```{r}
+data_countICUHRD <- data %>% filter( X1BedPathway == 6 | X1BedPathway == 10)
+data_countHICUHRD <- data %>% filter( X1BedPathway == 8 | X1BedPathway == 11)
+data_countHICUHICURD <- data %>% filter( X1BedPathway == 9 | X1BedPathway == 12)
+nrow(data_countICUHRD)
+nrow(data_countHICUHRD)
+nrow(data_countHICUHICURD)
+```
+
+```{r}
+#Models data
+
+# data model H -> RD
+data_H_RD<-data %>% filter(X2BedPathway == 1)
+data_H_RD$times<-data_H_RD$tRD
+
+# data model H -> ICU BP3
+data_H_ICUf<-data %>% filter(X2BedPathway == 3)
+data_H_ICUf$times<-data_H_ICUf$tICUf
+# data model ICU-> RD BP3
+data_ICUf_RD<-data %>% filter(X2BedPathway == 3)
+data_ICUf_RD$times<-data_ICUf_RD$tRD-data_ICUf_RD$tICUf
+# data model  BP3
+data_BP3<-data %>% filter(X2BedPathway == 3)
+data_BP3$times<-data_BP3$tRD
+
+# data model H -> ICU BP5
+data_H_ICUt<-data %>% filter(X2BedPathway == 5)
+data_H_ICUt$times<-data_H_ICUt$tICUt
+# data model ICU-> H2 BP5
+data_ICU_H2<-data %>% filter(X2BedPathway == 5)
+data_ICU_H2$times<-data_ICU_H2$tH2-data_ICU_H2$tICUt
+# data model H2-> RD BP5
+data_H2_RD<-data %>% filter(X2BedPathway == 5)
+data_H2_RD$times<-data_H2_RD$tRD-data_H2_RD$tH2
+# data model  BP5
+data_BP5<-data %>% filter(X2BedPathway == 5)
+data_BP5$times<-data_BP5$tRD
+
+# data model ICU -> RD
+data_ICU_RD<-data %>% filter(X2BedPathway == 2)
+data_ICU_RD$times<-data_ICU_RD$tRD
+
+# data model ICU -> H BP4
+data_ICU_Hf<-data %>% filter(X2BedPathway == 4)
+data_ICU_Hf$times<-data_ICU_Hf$tHf
+# data model H -> RD BP4
+data_Hf_RD<-data %>% filter(X2BedPathway == 4)
+data_Hf_RD$times<-data_Hf_RD$tRD-data_Hf_RD$tHf
+# data model  BP4
+data_BP4<-data %>% filter(X2BedPathway == 4)
+data_BP4$times<-data_BP4$tRD
+
+# data model ICU -> H BP6
+data_ICU_Ht<-data %>% filter(X2BedPathway == 6)
+data_ICU_Ht$times<-data_ICU_Ht$tHt
+# data model H-> ICU2 BP6
+data_H_ICU2<-data %>% filter(X2BedPathway == 6)
+data_H_ICU2$times<-data_H_ICU2$tICU2-data_H_ICU2$tHt
+# data model ICU2-> RD BP6
+data_ICU2_RD<-data %>% filter(X2BedPathway == 6)
+data_ICU2_RD$times<-data_ICU2_RD$tRD-data_ICU2_RD$tICU2
+# data model BP6
+data_BP6<-data %>% filter(X2BedPathway == 6)
+data_BP6$times<-data_BP6$tRD
+```
+
+
+# H - RD BP1
+
+
+```{r}
+#Model
+aft_H_RD<- with(data_H_RD,  Surv (data_H_RD$times,data_H_RD$outcome==1))
+
+gmma.aft_H_RD <- flexsurvreg(aft_H_RD  ~  Vaccination, data=data_H_RD,
+                         dist = "gamma")
+exp.aft_H_RD <- flexsurvreg(aft_H_RD  ~ Vaccination, data=data_H_RD,
+                         dist = "exp")
+llogis.aft_H_RD <- flexsurvreg(aft_H_RD  ~ Vaccination, data=data_H_RD,
+                         dist = "llogis")
+lnorm.aft_H_RD <- flexsurvreg(aft_H_RD  ~  Vaccination , data=data_H_RD,
+                         dist = "lnorm")
+weibull.aft_H_RD <- flexsurvreg(aft_H_RD  ~ Vaccination, data=data_H_RD,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft_H_RD$AIC, exp.aft_H_RD$AIC, llogis.aft_H_RD$AIC, lnorm.aft_H_RD$AIC, weibull.aft_H_RD$AIC))
+pander(df,style = "simple", caption = "H-RD")
+```
+
+
+```{r}
+lnorm.aft_H_RD
+```
+
+
+# H - ICUf BP3
+
+```{r}
+#Model
+aft<- with(data_H_ICUf,  Surv (data_H_ICUf$times,data_H_ICUf$outcome==1))
+
+gmma.aft <- flexsurvreg(aft ~ Vaccination, data=data_H_ICUf,
+                         dist = "gamma")
+exp.aft <- flexsurvreg(aft  ~ Vaccination , data=data_H_ICUf,
+                         dist = "exp")
+llogis.aft <- flexsurvreg(aft  ~ Vaccination , data=data_H_ICUf,
+                         dist = "llogis")
+lnorm.aft <- flexsurvreg(aft  ~ Vaccination , data=data_H_ICUf,
+                         dist = "lnorm")
+weibull.aft <- flexsurvreg(aft  ~ Vaccination , data=data_H_ICUf,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft$AIC, exp.aft$AIC, llogis.aft$AIC, lnorm.aft$AIC, weibull.aft$AIC))
+pander(df,style = "simple", caption = "H-ICUf")
+```
+
+```{r}
+flexsurvreg(aft  ~ Vaccination, data=data_H_ICUf, dist = "lnorm")
+```
+
+
+
+
+
+# ICUf - RD BP3
+
+```{r}
+#Model
+aft<- with(data_ICUf_RD,  Surv (data_ICUf_RD$times,data_ICUf_RD$outcome==1))
+
+gmma.aft <- flexsurvreg(aft ~ Vaccination, data=data_ICUf_RD,
+                         dist = "gamma")
+exp.aft <- flexsurvreg(aft  ~ Vaccination, data=data_ICUf_RD,
+                         dist = "exp")
+llogis.aft <- flexsurvreg(aft  ~ Vaccination , data=data_ICUf_RD,
+                         dist = "llogis")
+lnorm.aft <- flexsurvreg(aft  ~ Vaccination , data=data_ICUf_RD,
+                         dist = "lnorm")
+weibull.aft <- flexsurvreg(aft  ~ Vaccination , data=data_ICUf_RD,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft$AIC, exp.aft$AIC, llogis.aft$AIC, lnorm.aft$AIC, weibull.aft$AIC))
+pander(df,style = "simple", caption = "H-ICUf")
+```
+
+```{r}
+flexsurvreg(aft  ~ Vaccination, data=data_ICUf_RD, dist = "lnorm")
+```
+
+#  BP3
+
+```{r}
+#Model
+aft<- with(data_BP3,  Surv (data_BP3$times,data_BP3$outcome==1))
+
+gmma.aft <- flexsurvreg(aft ~ Vaccination , data=data_BP3,
+                         dist = "gamma")
+exp.aft <- flexsurvreg(aft  ~ Vaccination , data=data_BP3,
+                         dist = "exp")
+llogis.aft <- flexsurvreg(aft  ~ Vaccination , data=data_BP3,
+                         dist = "llogis")
+lnorm.aft <- flexsurvreg(aft  ~ Vaccination, data=data_BP3,
+                         dist = "lnorm")
+weibull.aft <- flexsurvreg(aft  ~ Vaccination, data=data_BP3,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft$AIC, exp.aft$AIC, llogis.aft$AIC, lnorm.aft$AIC, weibull.aft$AIC))
+pander(df,style = "simple", caption = "H-ICUt")
+```
+
+```{r}
+flexsurvreg(aft  ~Vaccination, data=data_BP3, dist = "lnorm")
+```
+
+
+
+# H - ICUt BP5
+```{r}
+#Model
+aft<- with(data_H_ICUt,  Surv (data_H_ICUt$times,data_H_ICUt$outcome==1))
+
+gmma.aft <- flexsurvreg(aft  ~  AgeG, data=data_H_ICUt,
+                         dist = "gamma")
+exp.aft <- flexsurvreg(aft  ~ AgeG, data=data_H_ICUt,
+                         dist = "exp")
+llogis.aft <- flexsurvreg(aft  ~ AgeG, data=data_H_ICUt,
+                         dist = "llogis")
+lnorm.aft <- flexsurvreg(aft  ~ AgeG, data=data_H_ICUt,
+                         dist = "lnorm")
+weibull.aft <- flexsurvreg(aft  ~  AgeG, data=data_H_ICUt,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft$AIC, exp.aft$AIC, llogis.aft$AIC, lnorm.aft$AIC, weibull.aft$AIC))
+pander(df,style = "simple", caption = "H-ICUt")
+```
+
+```{r}
+flexsurvreg(aft  ~ AgeG + sdlog(AgeG), data=data_H_ICUt, dist = "lnorm")
+```
+
+# ICUt- H2 BP5
+```{r}
+#Model
+aft<- with(data_ICU_H2,  Surv (data_ICU_H2$times,data_ICU_H2$outcome==1))
+
+gmma.aft <- flexsurvreg(aft  ~ AgeG, data=data_ICU_H2,
+                         dist = "gamma")
+exp.aft <- flexsurvreg(aft  ~ AgeG, data=data_ICU_H2,
+                         dist = "exp")
+llogis.aft <- flexsurvreg(aft  ~ AgeG, data=data_ICU_H2,
+                         dist = "llogis")
+lnorm.aft <- flexsurvreg(aft  ~ AgeG, data=data_ICU_H2,
+                         dist = "lnorm")
+weibull.aft <- flexsurvreg(aft  ~ AgeG, data=data_ICU_H2,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft$AIC, exp.aft$AIC, llogis.aft$AIC, lnorm.aft$AIC, weibull.aft$AIC))
+pander(df,style = "simple", caption = "H-ICUt")
+```
+
+```{r}
+flexsurvreg(aft  ~ AgeG + sdlog(AgeG), data=data_ICU_H2, dist = "lnorm")
+```
+
+# H2 - RD BP5
+```{r}
+#Model
+aft<- with(data_H2_RD,  Surv (data_H2_RD$times,data_H2_RD$outcome==1))
+
+gmma.aft <- flexsurvreg(aft  ~ AgeG, data=data_H2_RD,
+                         dist = "gamma")
+exp.aft <- flexsurvreg(aft  ~ AgeG, data=data_H2_RD,
+                         dist = "exp")
+llogis.aft <- flexsurvreg(aft  ~ AgeG, data=data_H2_RD,
+                         dist = "llogis")
+lnorm.aft <- flexsurvreg(aft  ~ AgeG, data=data_H2_RD,
+                         dist = "lnorm")
+weibull.aft <- flexsurvreg(aft  ~  AgeG, data=data_H2_RD,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft$AIC, exp.aft$AIC, llogis.aft$AIC, lnorm.aft$AIC, weibull.aft$AIC))
+pander(df,style = "simple", caption = "H-ICUt")
+```
+```{r}
+flexsurvreg(aft  ~ AgeG + sdlog(AgeG), data=data_H2_RD, dist = "lnorm")
+```
+
+
+#  BP5
+```{r}
+#Model
+aft<- with(data_BP5,  Surv (data_BP5$times,data_BP5$outcome==1))
+
+gmma.aft <- flexsurvreg(aft  ~ AgeG, data=data_BP5,
+                         dist = "gamma")
+exp.aft <- flexsurvreg(aft  ~ AgeG, data=data_BP5,
+                         dist = "exp")
+llogis.aft <- flexsurvreg(aft  ~ AgeG, data=data_BP5,
+                         dist = "llogis")
+lnorm.aft <- flexsurvreg(aft  ~ AgeG, data=data_BP5,
+                         dist = "lnorm")
+weibull.aft <- flexsurvreg(aft  ~ AgeG, data=data_BP5,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft$AIC, exp.aft$AIC, llogis.aft$AIC, lnorm.aft$AIC, weibull.aft$AIC))
+pander(df,style = "simple", caption = "H-ICUt")
+```
+
+```{r}
+flexsurvreg(aft  ~ AgeG + sdlog(AgeG), data=data_BP5, dist = "lnorm")
+```
+
+
+
+# ICU - RD BP2
+```{r}
+#Model
+aft<- with(data_ICU_RD,  Surv (data_ICU_RD$times,data_ICU_RD$outcome==1))
+
+gmma.aft <- flexsurvreg(aft ~ Vaccination, data=data_ICU_RD,
+                         dist = "gamma")
+exp.aft <- flexsurvreg(aft ~ Vaccination, data=data_ICU_RD,
+                         dist = "exp")
+llogis.aft <- flexsurvreg(aft  ~ Vaccination, data=data_ICU_RD,
+                         dist = "llogis")
+lnorm.aft <- flexsurvreg(aft  ~ Vaccination, data=data_ICU_RD,
+                         dist = "lnorm")
+weibull.aft <- flexsurvreg(aft  ~  Vaccination, data=data_ICU_RD,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft$AIC, exp.aft$AIC, llogis.aft$AIC, lnorm.aft$AIC, weibull.aft$AIC))
+pander(df,style = "simple", caption = "H-ICUt")
+```
+
+```{r}
+lnorm.aft
+```
+
+
+```{r}
+flexsurvreg(aft  ~ AgeG + sdlog(AgeG), data=data_ICU_RD, dist = "lnorm")
+```
+# ICU - Hf BP4
+```{r}
+#Model
+aft<- with(data_ICU_Hf,  Surv (data_ICU_Hf$times,data_ICU_Hf$outcome==1))
+
+gmma.aft <- flexsurvreg(aft ~ Vaccination, data=data_ICU_Hf,
+                         dist = "gamma")
+exp.aft <- flexsurvreg(aft  ~ Vaccination, data=data_ICU_Hf,
+                         dist = "exp")
+llogis.aft <- flexsurvreg(aft  ~ Vaccination, data=data_ICU_Hf,
+                         dist = "llogis")
+lnorm.aft <- flexsurvreg(aft  ~  Vaccination, data=data_ICU_Hf,
+                         dist = "lnorm")
+weibull.aft <- flexsurvreg(aft  ~ Vaccination, data=data_ICU_Hf,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft$AIC, exp.aft$AIC, llogis.aft$AIC, lnorm.aft$AIC, weibull.aft$AIC))
+pander(df,style = "simple", caption = "H-ICUt")
+```
+
+```{r}
+lnorm.aft
+```
+
+# Hf - RD BP4
+```{r}
+#Model
+aft<- with(data_Hf_RD,  Surv (data_Hf_RD$times,data_Hf_RD$outcome==1))
+
+gmma.aft <- flexsurvreg(aft ~ Vaccination , data=data_Hf_RD,
+                         dist = "gamma")
+exp.aft <- flexsurvreg(aft  ~ Vaccination, data=data_Hf_RD,
+                         dist = "exp")
+llogis.aft <- flexsurvreg(aft  ~ Vaccination, data=data_Hf_RD,
+                         dist = "llogis")
+lnorm.aft <- flexsurvreg(aft  ~ Vaccination, data=data_Hf_RD,
+                         dist = "lnorm")
+weibull.aft <- flexsurvreg(aft  ~  Vaccination, data=data_Hf_RD,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft$AIC, exp.aft$AIC, llogis.aft$AIC, lnorm.aft$AIC, weibull.aft$AIC))
+pander(df,style = "simple", caption = "H-ICUt")
+```
+
+```{r}
+flexsurvreg(aft  ~ Vaccination, data=data_Hf_RD, dist = "lnorm")
+```
+
+#  BP4
+```{r}
+#Model
+aft<- with(data_BP4,  Surv (data_BP4$times,data_BP4$outcome==1))
+
+gmma.aft <- flexsurvreg(aft ~ Vaccination, data=data_BP4,
+                         dist = "gamma")
+exp.aft <- flexsurvreg(aft  ~  Vaccination, data=data_BP4,
+                         dist = "exp")
+llogis.aft <- flexsurvreg(aft  ~ Vaccination, data=data_BP4,
+                         dist = "llogis")
+lnorm.aft <- flexsurvreg(aft  ~ Vaccination, data=data_BP4,
+                         dist = "lnorm")
+weibull.aft <- flexsurvreg(aft  ~ Vaccination, data=data_BP4,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft$AIC, exp.aft$AIC, llogis.aft$AIC, lnorm.aft$AIC, weibull.aft$AIC))
+pander(df,style = "simple", caption = "H-ICUt")
+```
+
+```{r}
+flexsurvreg(aft  ~ Vaccination, data=data_BP4, dist = "lnorm")
+```
+
+# ICU - Ht BP6
+```{r}
+#Model
+aft<- with(data_ICU_Ht,  Surv (data_ICU_Ht$times,data_ICU_Ht$outcome==1))
+
+gmma.aft <- flexsurvreg(aft ~  AgeG, data=data_ICU_Ht,
+                         dist = "gamma")
+exp.aft <- flexsurvreg(aft  ~ AgeG, data=data_ICU_Ht,
+                         dist = "exp")
+llogis.aft <- flexsurvreg(aft  ~ AgeG, data=data_ICU_Ht,
+                         dist = "llogis")
+lnorm.aft <- flexsurvreg(aft ~ AgeG, data=data_ICU_Ht,
+                         dist = "lnorm")
+weibull.aft <- flexsurvreg(aft  ~  AgeG, data=data_ICU_Ht,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft$AIC, exp.aft$AIC, llogis.aft$AIC, lnorm.aft$AIC, weibull.aft$AIC))
+pander(df,style = "simple", caption = "H-ICUt")
+```
+
+```{r}
+flexsurvreg(aft  ~ AgeG + sdlog(AgeG), data= data_ICU_Ht, dist = "lnorm")
+```
+
+
+
+# Ht - ICU2 BP6
+
+```{r}
+#Model
+aft<- with(data_H_ICU2,  Surv (data_H_ICU2$times,data_H_ICU2$outcome==1))
+
+gmma.aft <- flexsurvreg(aft ~ AgeG, data=data_H_ICU2,
+                         dist = "gamma")
+exp.aft <- flexsurvreg(aft  ~ AgeG, data=data_H_ICU2,
+                         dist = "exp")
+llogis.aft <- flexsurvreg(aft  ~ AgeG, data=data_H_ICU2,
+                         dist = "llogis")
+lnorm.aft <- flexsurvreg(aft  ~ AgeG, data=data_H_ICU2,
+                         dist = "lnorm")
+weibull.aft <- flexsurvreg(aft  ~ AgeG, data=data_H_ICU2,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft$AIC, exp.aft$AIC, llogis.aft$AIC, lnorm.aft$AIC, weibull.aft$AIC))
+pander(df,style = "simple", caption = "H-ICUt")
+```
+
+```{r}
+flexsurvreg(aft  ~ AgeG + sdlog(AgeG), data=data_H_ICU2, dist = "lnorm")
+```
+
+
+
+# ICU2 - RD BP6
+```{r}
+#Model
+aft<- with(data_ICU2_RD,  Surv (data_ICU2_RD$times,data_ICU2_RD$outcome==1))
+
+gmma.aft <- flexsurvreg(aft ~ AgeG, data=data_ICU2_RD,
+                         dist = "gamma")
+exp.aft <- flexsurvreg(aft ~ AgeG, data=data_ICU2_RD,
+                         dist = "exp")
+llogis.aft <- flexsurvreg(aft  ~ AgeG, data=data_ICU2_RD,
+                         dist = "llogis")
+lnorm.aft <- flexsurvreg(aft  ~ AgeG, data=data_ICU2_RD,
+                         dist = "lnorm")
+weibull.aft <- flexsurvreg(aft  ~ AgeG, data=data_ICU2_RD,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft$AIC, exp.aft$AIC, llogis.aft$AIC, lnorm.aft$AIC, weibull.aft$AIC))
+pander(df,style = "simple", caption = "H-ICUt")
+```
+
+```{r}
+flexsurvreg(aft  ~ AgeG + sdlog(AgeG), data=data_ICU2_RD, dist = "lnorm")
+```
+
+#  BP6
+```{r}
+#Model
+aft<- with(data_BP6,  Surv (data_BP6$times,data_BP6$outcome==1))
+
+gmma.aft <- flexsurvreg(aft ~ AgeG, data=data_BP6,
+                         dist = "gamma")
+exp.aft <- flexsurvreg(aft  ~ AgeG, data=data_BP6,
+                         dist = "exp")
+llogis.aft <- flexsurvreg(aft  ~ AgeG, data=data_BP6,
+                         dist = "llogis")
+lnorm.aft <- flexsurvreg(aft  ~ AgeG, data=data_BP6,
+                         dist = "lnorm")
+weibull.aft <- flexsurvreg(aft  ~ AgeG, data=data_BP6,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft$AIC, exp.aft$AIC, llogis.aft$AIC, lnorm.aft$AIC, weibull.aft$AIC))
+pander(df,style = "simple", caption = "H-ICUt")
+```
+
+```{r}
+flexsurvreg(aft  ~ AgeG + sdlog(AgeG), data=data_BP6, dist = "lnorm")
+```

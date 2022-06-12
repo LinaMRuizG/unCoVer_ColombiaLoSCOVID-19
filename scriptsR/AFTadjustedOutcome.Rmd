@@ -1,0 +1,341 @@
+---
+title: "AFTs_frequentist"
+author: "Lina M. Ruiz G."
+date: "3/24/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(dplyr)
+library(survival)
+library(dplyr)
+library(survminer)
+library(naniar)
+library(MASS)
+library(flexsurv)
+library(tidyverse)
+library(stargazer)
+library(pander)
+library(data.table)
+```
+
+# data
+
+```{r}
+data <- read.csv("/home/lina/Documents/unCoVer/uncoverP1LoS/dataBases/dataBaseAnalysis11.csv")
+data<-data %>% filter( tRD <100)
+data$AgeG <- case_when(data$AgeYears > 1 & data$AgeYears <= 50 ~ "1",
+                         data$AgeYears > 50 & data$AgeYears <= 64 ~ "2",
+                         data$AgeYears > 64 & data$AgeYears <= 74 ~ "3",
+                         data$AgeYears > 74 ~ "4")
+data$outcome <- rep(1,nrow(data))
+data$outcomeRD <- case_when(data$X1BedPathway == 1 ~ "R",
+                            data$X1BedPathway == 2 ~ "D",
+                            data$X1BedPathway == 3 ~ "R",
+                            data$X1BedPathway == 4 ~ "D",
+                            data$X1BedPathway == 5 ~ "R",
+                            data$X1BedPathway == 6 ~ "R",
+                            data$X1BedPathway == 7 ~ "D",
+                            data$X1BedPathway == 8 ~ "R",
+                            data$X1BedPathway == 9 ~ "R",
+                            data$X1BedPathway == 10 ~ "D",
+                            data$X1BedPathway == 11 ~ "D",
+                            data$X1BedPathway == 12 ~ "D")
+
+```
+
+```{r}
+#Models data
+
+# data model H -> RD
+data_H_RD<-data %>% filter(X2BedPathway == 1)
+data_H_RD$times<-data_H_RD$tRD
+
+# data model H -> ICU BP3
+data_H_ICUf<-data %>% filter(X2BedPathway == 3)
+data_H_ICUf$times<-data_H_ICUf$tICUf
+# data model ICU-> RD BP3
+data_ICUf_RD<-data %>% filter(X2BedPathway == 3)
+data_ICUf_RD$times<-data_ICUf_RD$tRD-data_ICUf_RD$tICUf
+# data model  BP3
+data_BP3<-data %>% filter(X2BedPathway == 3)
+data_BP3$times<-data_BP3$tRD
+
+
+# data model ICU -> RD
+data_ICU_RD<-data %>% filter(X2BedPathway == 2)
+data_ICU_RD$times<-data_ICU_RD$tRD
+
+# data model ICU -> H BP4
+data_ICU_Hf<-data %>% filter(X2BedPathway == 4)
+data_ICU_Hf$times<-data_ICU_Hf$tHf
+# data model H -> RD BP4
+data_Hf_RD<-data %>% filter(X2BedPathway == 4)
+data_Hf_RD$times<-data_Hf_RD$tRD-data_Hf_RD$tHf
+# data model  BP4
+data_BP4<-data %>% filter(X2BedPathway == 4)
+data_BP4$times<-data_BP4$tRD
+
+
+```
+
+```{r}
+table(data_H_RD$outcomeRD)
+table(data_ICU_RD$outcomeRD)
+```
+
+
+# H - RD BP1
+
+
+```{r}
+#Model
+aft_H_RD<- with(data_H_RD,  Surv (data_H_RD$times,data_H_RD$outcome==1))
+
+gmma.aft_H_RD <- flexsurvreg(aft_H_RD  ~ outcomeRD, data=data_H_RD,
+                         dist = "gamma")
+exp.aft_H_RD <- flexsurvreg(aft_H_RD  ~ outcomeRD, data=data_H_RD,
+                         dist = "exp")
+llogis.aft_H_RD <- flexsurvreg(aft_H_RD  ~ outcomeRD, data=data_H_RD,
+                         dist = "llogis")
+lnorm.aft_H_RD <- flexsurvreg(aft_H_RD  ~ outcomeRD, data=data_H_RD,
+                         dist = "lnorm")
+weibull.aft_H_RD <- flexsurvreg(aft_H_RD  ~ outcomeRD, data=data_H_RD,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft_H_RD$AIC, exp.aft_H_RD$AIC, llogis.aft_H_RD$AIC, lnorm.aft_H_RD$AIC, weibull.aft_H_RD$AIC))
+pander(df,style = "simple", caption = "")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),BIC = c( BIC(gmma.aft_H_RD), BIC(exp.aft_H_RD), BIC(llogis.aft_H_RD), BIC(lnorm.aft_H_RD), BIC(weibull.aft_H_RD)))
+pander(df,style = "simple", caption = "")
+```
+
+
+
+```{r}
+lnorm.aft_H_RD 
+```
+
+
+
+# H - ICUf BP3
+
+```{r}
+#Model
+aft<- with(data_H_ICUf,  Surv (data_H_ICUf$times,data_H_ICUf$outcome==1))
+
+gmma.aft <- flexsurvreg(aft ~ outcomeRD, data=data_H_ICUf,
+                         dist = "gamma")
+exp.aft <- flexsurvreg(aft  ~ outcomeRD , data=data_H_ICUf,
+                         dist = "exp")
+llogis.aft <- flexsurvreg(aft  ~ outcomeRD , data=data_H_ICUf,
+                         dist = "llogis")
+lnorm.aft <- flexsurvreg(aft  ~ outcomeRD , data=data_H_ICUf,
+                         dist = "lnorm")
+weibull.aft <- flexsurvreg(aft  ~ outcomeRD , data=data_H_ICUf,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft$AIC, exp.aft$AIC, llogis.aft$AIC, lnorm.aft$AIC, weibull.aft$AIC))
+pander(df,style = "simple", caption = "")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),BIC = c( BIC(gmma.aft), BIC(exp.aft), BIC(llogis.aft), BIC(lnorm.aft), BIC(weibull.aft)))
+pander(df,style = "simple", caption = "")
+```
+
+```{r}
+gmma.aft
+```
+
+```{r}
+weibull.aft
+```
+
+
+
+```{r}
+pW<-predict(weibull.aft,data_H_ICUf, type = "response",conf.int = TRUE,se.fit = TRUE)
+pG<-predict(gmma.aft,data_H_ICUf, type = "response",conf.int = TRUE,se.fit = TRUE)
+pN<-predict(lnorm.aft,data_H_ICUf, type = "response",conf.int = TRUE,se.fit = TRUE)
+```
+
+
+
+```{r}
+plot(pW$.pred,pN$.pred)
+```
+```{r}
+lnorm.aft
+```
+
+
+
+# ICUf - RD BP3
+
+```{r}
+#Model
+aft<- with(data_ICUf_RD,  Surv (data_ICUf_RD$times,data_ICUf_RD$outcome==1))
+
+gmma.aft <- flexsurvreg(aft ~ outcomeRD, data=data_ICUf_RD,
+                         dist = "gamma")
+exp.aft <- flexsurvreg(aft  ~ outcomeRD, data=data_ICUf_RD,
+                         dist = "exp")
+llogis.aft <- flexsurvreg(aft  ~ outcomeRD , data=data_ICUf_RD,
+                         dist = "llogis")
+lnorm.aft <- flexsurvreg(aft  ~ outcomeRD , data=data_ICUf_RD,
+                         dist = "lnorm")
+weibull.aft <- flexsurvreg(aft  ~ outcomeRD , data=data_ICUf_RD,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft$AIC, exp.aft$AIC, llogis.aft$AIC, lnorm.aft$AIC, weibull.aft$AIC))
+pander(df,style = "simple", caption = "")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),BIC = c( BIC(gmma.aft_H_RD), BIC(exp.aft_H_RD), BIC(llogis.aft), BIC(lnorm.aft), BIC(weibull.aft)))
+pander(df,style = "simple", caption = "")
+```
+
+```{r}
+flexsurvreg(aft  ~ outcomeRD + sdlog(outcomeRD), data=data_ICUf_RD, dist = "lnorm")
+```
+```{r}
+flexsurvreg(aft  ~ outcomeRD, data=data_ICUf_RD, dist = "lnorm")
+```
+#  BP3
+
+```{r}
+#Model
+aft<- with(data_BP3,  Surv (data_BP3$times,data_BP3$outcome==1))
+
+gmma.aft <- flexsurvreg(aft ~ outcomeRD , data=data_BP3,
+                         dist = "gamma")
+exp.aft <- flexsurvreg(aft  ~ outcomeRD , data=data_BP3,
+                         dist = "exp")
+llogis.aft <- flexsurvreg(aft  ~ outcomeRD , data=data_BP3,
+                         dist = "llogis")
+lnorm.aft <- flexsurvreg(aft  ~ outcomeRD, data=data_BP3,
+                         dist = "lnorm")
+weibull.aft <- flexsurvreg(aft  ~ outcomeRD, data=data_BP3,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft$AIC, exp.aft$AIC, llogis.aft$AIC, lnorm.aft$AIC, weibull.aft$AIC))
+pander(df,style = "simple", caption = "")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),BIC = c( BIC(gmma.aft), BIC(exp.aft), BIC(llogis.aft), BIC(lnorm.aft), BIC(weibull.aft)))
+pander(df,style = "simple", caption = "")
+```
+
+```{r}
+lnorm.aft
+```
+
+
+
+
+
+
+
+# ICU - RD BP2
+```{r}
+#Model
+aft<- with(data_ICU_RD,  Surv (data_ICU_RD$times,data_ICU_RD$outcome==1))
+
+gmma.aft <- flexsurvreg(aft ~ outcomeRD, data=data_ICU_RD,
+                         dist = "gamma")
+exp.aft <- flexsurvreg(aft ~ outcomeRD, data=data_ICU_RD,
+                         dist = "exp")
+llogis.aft <- flexsurvreg(aft  ~ outcomeRD, data=data_ICU_RD,
+                         dist = "llogis")
+lnorm.aft <- flexsurvreg(aft  ~ outcomeRD, data=data_ICU_RD,
+                         dist = "lnorm")
+weibull.aft <- flexsurvreg(aft  ~ outcomeRD, data=data_ICU_RD,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft$AIC, exp.aft$AIC, llogis.aft$AIC, lnorm.aft$AIC, weibull.aft$AIC))
+pander(df,style = "simple", caption = "")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),BIC = c( BIC(gmma.aft), BIC(exp.aft), BIC(llogis.aft), BIC(lnorm.aft), BIC(weibull.aft)))
+pander(df,style = "simple", caption = "")
+```
+
+```{r}
+flexsurvreg(aft  ~ outcomeRD , data=data_ICU_RD, dist = "lnorm")
+```
+
+# ICU - Hf BP4
+```{r}
+#Model
+aft<- with(data_ICU_Hf,  Surv (data_ICU_Hf$times,data_ICU_Hf$outcome==1))
+
+gmma.aft <- flexsurvreg(aft ~ outcomeRD, data=data_ICU_Hf,
+                         dist = "gamma")
+exp.aft <- flexsurvreg(aft  ~ outcomeRD, data=data_ICU_Hf,
+                         dist = "exp")
+llogis.aft <- flexsurvreg(aft  ~ outcomeRD, data=data_ICU_Hf,
+                         dist = "llogis")
+lnorm.aft <- flexsurvreg(aft  ~ outcomeRD, data=data_ICU_Hf,
+                         dist = "lnorm")
+weibull.aft <- flexsurvreg(aft  ~ outcomeRD, data=data_ICU_Hf,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft$AIC, exp.aft$AIC, llogis.aft$AIC, lnorm.aft$AIC, weibull.aft$AIC))
+pander(df,style = "simple", caption = "H-ICUt")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),BIC = c( BIC(gmma.aft), BIC(exp.aft), BIC(llogis.aft), BIC(lnorm.aft), BIC(weibull.aft)))
+pander(df,style = "simple", caption = "")
+```
+
+```{r}
+flexsurvreg(aft  ~ outcomeRD , data=data_ICU_Hf, dist = "lnorm")
+```
+
+# Hf - RD BP4
+```{r}
+#Model
+aft<- with(data_Hf_RD,  Surv (data_Hf_RD$times,data_Hf_RD$outcome==1))
+
+gmma.aft <- flexsurvreg(aft ~ outcomeRD, data=data_Hf_RD,
+                         dist = "gamma")
+exp.aft <- flexsurvreg(aft  ~ outcomeRD, data=data_Hf_RD,
+                         dist = "exp")
+llogis.aft <- flexsurvreg(aft  ~ outcomeRD, data=data_Hf_RD,
+                         dist = "llogis")
+lnorm.aft <- flexsurvreg(aft  ~ outcomeRD, data=data_Hf_RD,
+                         dist = "lnorm")
+weibull.aft <- flexsurvreg(aft  ~ outcomeRD, data=data_Hf_RD,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft$AIC, exp.aft$AIC, llogis.aft$AIC, lnorm.aft$AIC, weibull.aft$AIC))
+pander(df,style = "simple", caption = "H-ICUt")
+```
+
+```{r}
+flexsurvreg(aft  ~ outcomeRD , data=data_Hf_RD, dist = "lnorm")
+```
+
+#  BP4
+```{r}
+#Model
+aft<- with(data_BP4,  Surv (data_BP4$times,data_BP4$outcome==1))
+
+gmma.aft <- flexsurvreg(aft ~ outcomeRD, data=data_BP4,
+                         dist = "gamma")
+exp.aft <- flexsurvreg(aft  ~ outcomeRD, data=data_BP4,
+                         dist = "exp")
+llogis.aft <- flexsurvreg(aft  ~ outcomeRD, data=data_BP4,
+                         dist = "llogis")
+lnorm.aft <- flexsurvreg(aft  ~ outcomeRD, data=data_BP4,
+                         dist = "lnorm")
+weibull.aft <- flexsurvreg(aft  ~ outcomeRD, data=data_BP4,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft$AIC, exp.aft$AIC, llogis.aft$AIC, lnorm.aft$AIC, weibull.aft$AIC))
+pander(df,style = "simple", caption = "H-ICUt")
+```
+
+```{r}
+flexsurvreg(aft  ~ outcomeRD , data=data_BP4, dist = "lnorm")
+```
+

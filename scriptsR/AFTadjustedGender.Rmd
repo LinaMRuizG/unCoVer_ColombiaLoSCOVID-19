@@ -1,0 +1,661 @@
+---
+title: "AFTs_frequentist"
+author: "Lina M. Ruiz G."
+date: "3/24/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(dplyr)
+library(survival)
+library(dplyr)
+library(survminer)
+library(naniar)
+library(MASS)
+library(flexsurv)
+library(tidyverse)
+library(stargazer)
+library(pander)
+library(data.table)
+```
+
+# data
+
+```{r}
+data <- read.csv("/home/lina/Documents/unCoVer/uncoverP1LoS/dataBases/dataBaseAnalysis11.csv")
+data<-data %>% filter( tRD <100)
+data$AgeG <- case_when(data$AgeYears > 1 & data$AgeYears <= 50 ~ "1",
+                         data$AgeYears > 50 & data$AgeYears <= 64 ~ "2",
+                         data$AgeYears > 64 & data$AgeYears <= 74 ~ "3",
+                         data$AgeYears > 74 ~ "4")
+data$outcome <- rep(1,nrow(data))
+```
+
+```{r}
+#Models data
+
+# data model H -> RD
+data_H_RD<-data %>% filter(X2BedPathway == 1)
+data_H_RD$times<-data_H_RD$tRD
+
+# data model H -> ICU BP3
+data_H_ICUf<-data %>% filter(X2BedPathway == 3)
+data_H_ICUf$times<-data_H_ICUf$tICUf
+# data model ICU-> RD BP3
+data_ICUf_RD<-data %>% filter(X2BedPathway == 3)
+data_ICUf_RD$times<-data_ICUf_RD$tRD-data_ICUf_RD$tICUf
+# data model  BP3
+data_BP3<-data %>% filter(X2BedPathway == 3)
+data_BP3$times<-data_BP3$tRD
+
+# data model H -> ICU BP5
+data_H_ICUt<-data %>% filter(X2BedPathway == 5)
+data_H_ICUt$times<-data_H_ICUt$tICUt
+# data model ICU-> H2 BP5
+data_ICU_H2<-data %>% filter(X2BedPathway == 5)
+data_ICU_H2$times<-data_ICU_H2$tH2-data_ICU_H2$tICUt
+# data model H2-> RD BP5
+data_H2_RD<-data %>% filter(X2BedPathway == 5)
+data_H2_RD$times<-data_H2_RD$tRD-data_H2_RD$tH2
+# data model  BP5
+data_BP5<-data %>% filter(X2BedPathway == 5)
+data_BP5$times<-data_BP5$tRD
+
+# data model ICU -> RD
+data_ICU_RD<-data %>% filter(X2BedPathway == 2)
+data_ICU_RD$times<-data_ICU_RD$tRD
+
+# data model ICU -> H BP4
+data_ICU_Hf<-data %>% filter(X2BedPathway == 4)
+data_ICU_Hf$times<-data_ICU_Hf$tHf
+# data model H -> RD BP4
+data_Hf_RD<-data %>% filter(X2BedPathway == 4)
+data_Hf_RD$times<-data_Hf_RD$tRD-data_Hf_RD$tHf
+# data model  BP4
+data_BP4<-data %>% filter(X2BedPathway == 4)
+data_BP4$times<-data_BP4$tRD
+
+# data model ICU -> H BP6
+data_ICU_Ht<-data %>% filter(X2BedPathway == 6)
+data_ICU_Ht$times<-data_ICU_Ht$tHt
+# data model H-> ICU2 BP6
+data_H_ICU2<-data %>% filter(X2BedPathway == 6)
+data_H_ICU2$times<-data_H_ICU2$tICU2-data_H_ICU2$tHt
+# data model ICU2-> RD BP6
+data_ICU2_RD<-data %>% filter(X2BedPathway == 6)
+data_ICU2_RD$times<-data_ICU2_RD$tRD-data_ICU2_RD$tICU2
+# data model BP6
+data_BP6<-data %>% filter(X2BedPathway == 6)
+data_BP6$times<-data_BP6$tRD
+```
+
+```{r}
+table(data_H_RD$Gender)
+table(data_ICU_RD$Gender)
+nrow(data_H_RD)
+nrow(data_ICU_RD)
+```
+
+# H - RD BP1
+
+
+```{r}
+#Model
+aft_H_RD<- with(data_H_RD,  Surv (data_H_RD$times,data_H_RD$outcome==1))
+
+gmma.aft_H_RD <- flexsurvreg(aft_H_RD  ~ Gender + AgeG, data=data_H_RD,
+                         dist = "gamma")
+exp.aft_H_RD <- flexsurvreg(aft_H_RD  ~ Gender + AgeG, data=data_H_RD,
+                         dist = "exp")
+llogis.aft_H_RD <- flexsurvreg(aft_H_RD  ~ Gender + AgeG, data=data_H_RD,
+                         dist = "llogis")
+lnorm.aft_H_RD <- flexsurvreg(aft_H_RD  ~ Gender + AgeG , data=data_H_RD,
+                         dist = "lnorm")
+weibull.aft_H_RD <- flexsurvreg(aft_H_RD  ~ Gender + AgeG, data=data_H_RD,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft_H_RD$AIC, exp.aft_H_RD$AIC, llogis.aft_H_RD$AIC, lnorm.aft_H_RD$AIC, weibull.aft_H_RD$AIC))
+pander(df,style = "simple", caption = "H-RD")
+```
+
+
+```{r}
+# relationshio between survreg and flexsurvreg parameters: http://installers.treeagesoftware.com/treeagepro/PDF/R+Paremeterization+vs+TP.pdf
+s<-survreg(aft_H_RD  ~ Gender + AgeG , data=data_H_RD,
+                         dist = "lognormal")
+summary(s)
+```
+
+```{r}
+lnorm.aft_H_RD
+```
+```{r}
+#p-values ¡how to get the p-value?
+lnorm.aft_H_RD.res <- lnorm.aft_H_RD$res
+lnorm.aft_H_RD.wald <- lnorm.aft_H_RD.res[,1]/lnorm.aft_H_RD.res[,4]
+lnorm.aft_H_RD.p <- 2*pnorm(-abs(lnorm.aft_H_RD.wald))
+```
+
+
+```{r}
+summary(lnorm.aft_H_RD)
+```
+
+
+```{r}
+lnorm.aft_H_RD <- flexsurvreg(aft_H_RD  ~ Gender+ AgeG, data=data_H_RD,
+                         dist = "lnorm")
+pr <- predict(lnorm.aft_H_RD, newdata = data_H_RD,type = "response")
+data_H_RDn <- bind_cols(data_H_RD, pr)
+#summary(pr)
+#data_H_RDn |> group_by(AgeG, Gender) |> summarise(mean=mean(.pred,na.rm=T),median=median(.pred, na.rm=T),iqr=IQR(.pred, #na.rm=T)) 
+lnorm.aft_H_RD
+data_H_RDn |> group_by(Gender) |> summarise(mean=mean(.pred,na.rm=T),median=median(.pred, na.rm=T),iqr=IQR(.pred, na.rm=T)) 
+```
+
+```{r}
+# Adjusting only for Gender to understand the results
+aft_H_RD<- with(data_H_RD,  Surv (data_H_RD$times,data_H_RD$outcome==1))
+lnorm.aft_H_RD <- flexsurvreg(aft_H_RD  ~ Gender, data=data_H_RD,
+                         dist = "lnorm")
+pr <- predict(lnorm.aft_H_RD, newdata = data_H_RD,type = "response")
+data_H_RDn <- bind_cols(data_H_RD, pr)
+###############################
+# Interpreting the results of flexsurvreg: the covariables are used to model the location parameters of distribution. For this reason the Acelerated Factor multiply this parameter to get the time distribution of the comparison group https://devinincerti.com/2019/06/18/parametric_survival.html#adding-covariates
+# It gives me the meanlog and sdlog of the basal model. The exp(est) is the multiplicative effect, so: the meanlog is 1.812 for GenderF, and 1.812+0.105 is for GenderM  
+lnorm.aft_H_RD 
+###############################
+data_H_RDn |> group_by(Gender) |> summarise(mean=mean(.pred,na.rm=T),median=median(.pred, na.rm=T),iqr=IQR(.pred, na.rm=T)) 
+
+```
+
+
+```{r}
+# Adjusting only for Gender to understand the results
+aft_H_RD<- with(data_H_RD,  Surv (data_H_RD$times,data_H_RD$outcome==1))
+lnorm.aft_H_RD <- flexsurvreg(aft_H_RD  ~ Gender + sdlog(Gender), data=data_H_RD,
+                         dist = "lnorm")
+###############################
+lnorm.aft_H_RD 
+
+```
+
+
+
+
+
+
+```{r}
+kmS= survfit ( Surv (data_H_RD$times,data_H_RD$outcome==1)
+                        ~Gender,
+                        data = data_H_RD)
+ggsurvplot(kmS,
+           data = data_H_RD,
+           pval = TRUE,
+           pval.method = TRUE,
+           #log.rank.weights = "S2",
+           surv.median.line = "v", # Specify median survival
+           ggtheme = theme_light(), # Change ggplot2 theme
+           size = 0.6,
+           palette = c("black","black"),
+           linetype = c("solid","dashed"),
+           xlim = c(0, 60),
+           xlab = "Time in days",
+           break.time.by = 5,
+           legend.labs = c("Female", "Male"),
+           legend.title = "Gender",
+           censor = FALSE,
+           title = "From Hospital Admission to Recovery"
+            )
+```
+
+
+
+
+
+
+
+
+
+
+
+# H - RD BP1
+
+
+```{r}
+#Model
+aft_H_RD<- with(data_H_RD,  Surv (data_H_RD$times,data_H_RD$outcome==1))
+
+gmma.aft_H_RD <- flexsurvreg(aft_H_RD  ~ Gender, data=data_H_RD,
+                         dist = "gamma")
+exp.aft_H_RD <- flexsurvreg(aft_H_RD  ~ Gender , data=data_H_RD,
+                         dist = "exp")
+llogis.aft_H_RD <- flexsurvreg(aft_H_RD  ~ Gender , data=data_H_RD,
+                         dist = "llogis")
+lnorm.aft_H_RD <- flexsurvreg(aft_H_RD  ~ Gender  , data=data_H_RD,
+                         dist = "lnorm")
+weibull.aft_H_RD <- flexsurvreg(aft_H_RD  ~ Gender, data=data_H_RD,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft_H_RD$AIC, exp.aft_H_RD$AIC, llogis.aft_H_RD$AIC, lnorm.aft_H_RD$AIC, weibull.aft_H_RD$AIC))
+pander(df,style = "simple", caption = "H-RD")
+```
+
+
+```{r}
+lnorm.aft_H_RD
+```
+
+
+
+
+# H - ICUf BP3
+
+```{r}
+#Model
+aft<- with(data_H_ICUf,  Surv (data_H_ICUf$times,data_H_ICUf$outcome==1))
+
+gmma.aft <- flexsurvreg(aft ~ Gender, data=data_H_ICUf,
+                         dist = "gamma")
+exp.aft <- flexsurvreg(aft  ~ Gender , data=data_H_ICUf,
+                         dist = "exp")
+llogis.aft <- flexsurvreg(aft  ~ Gender , data=data_H_ICUf,
+                         dist = "llogis")
+lnorm.aft <- flexsurvreg(aft  ~ Gender , data=data_H_ICUf,
+                         dist = "lnorm")
+weibull.aft <- flexsurvreg(aft  ~ Gender , data=data_H_ICUf,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft$AIC, exp.aft$AIC, llogis.aft$AIC, lnorm.aft$AIC, weibull.aft$AIC))
+pander(df,style = "simple", caption = "H-ICUf")
+```
+
+```{r}
+lnorm.aft 
+```
+
+
+
+
+
+# ICUf - RD BP3
+
+```{r}
+#Model
+aft<- with(data_ICUf_RD,  Surv (data_ICUf_RD$times,data_ICUf_RD$outcome==1))
+
+gmma.aft <- flexsurvreg(aft ~ Gender, data=data_ICUf_RD,
+                         dist = "gamma")
+exp.aft <- flexsurvreg(aft  ~ Gender, data=data_ICUf_RD,
+                         dist = "exp")
+llogis.aft <- flexsurvreg(aft  ~ Gender , data=data_ICUf_RD,
+                         dist = "llogis")
+lnorm.aft <- flexsurvreg(aft  ~ Gender , data=data_ICUf_RD,
+                         dist = "lnorm")
+weibull.aft <- flexsurvreg(aft  ~ Gender , data=data_ICUf_RD,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft$AIC, exp.aft$AIC, llogis.aft$AIC, lnorm.aft$AIC, weibull.aft$AIC))
+pander(df,style = "simple", caption = "H-ICUf")
+```
+
+```{r}
+lnorm.aft 
+```
+
+#  BP3
+
+```{r}
+#Model
+aft<- with(data_BP3,  Surv (data_BP3$times,data_BP3$outcome==1))
+
+gmma.aft <- flexsurvreg(aft ~ Gender , data=data_BP3,
+                         dist = "gamma")
+exp.aft <- flexsurvreg(aft  ~ Gender , data=data_BP3,
+                         dist = "exp")
+llogis.aft <- flexsurvreg(aft  ~ Gender , data=data_BP3,
+                         dist = "llogis")
+lnorm.aft <- flexsurvreg(aft  ~ Gender, data=data_BP3,
+                         dist = "lnorm")
+weibull.aft <- flexsurvreg(aft  ~ Gender, data=data_BP3,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft$AIC, exp.aft$AIC, llogis.aft$AIC, lnorm.aft$AIC, weibull.aft$AIC))
+pander(df,style = "simple", caption = "H-ICUt")
+```
+
+```{r}
+lnorm.aft 
+```
+
+
+
+# H - ICUt BP5
+```{r}
+#Model
+aft<- with(data_H_ICUt,  Surv (data_H_ICUt$times,data_H_ICUt$outcome==1))
+
+gmma.aft <- flexsurvreg(aft  ~ Gender + AgeG, data=data_H_ICUt,
+                         dist = "gamma")
+exp.aft <- flexsurvreg(aft  ~ Gender + AgeG, data=data_H_ICUt,
+                         dist = "exp")
+llogis.aft <- flexsurvreg(aft  ~ Gender + AgeG, data=data_H_ICUt,
+                         dist = "llogis")
+lnorm.aft <- flexsurvreg(aft  ~ Gender + AgeG, data=data_H_ICUt,
+                         dist = "lnorm")
+weibull.aft <- flexsurvreg(aft  ~ Gender + AgeG, data=data_H_ICUt,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft$AIC, exp.aft$AIC, llogis.aft$AIC, lnorm.aft$AIC, weibull.aft$AIC))
+pander(df,style = "simple", caption = "H-ICUt")
+```
+
+```{r}
+flexsurvreg(aft  ~ Gender , data=data_H_ICUt, dist = "lnorm")
+flexsurvreg(aft  ~ Gender + sdlog(Gender), data=data_H_ICUt, dist = "lnorm")
+```
+
+# ICUt- H2 BP5
+```{r}
+#Model
+aft<- with(data_ICU_H2,  Surv (data_ICU_H2$times,data_ICU_H2$outcome==1))
+
+gmma.aft <- flexsurvreg(aft  ~ Gender + AgeG, data=data_ICU_H2,
+                         dist = "gamma")
+exp.aft <- flexsurvreg(aft  ~ Gender + AgeG, data=data_ICU_H2,
+                         dist = "exp")
+llogis.aft <- flexsurvreg(aft  ~ Gender + AgeG, data=data_ICU_H2,
+                         dist = "llogis")
+lnorm.aft <- flexsurvreg(aft  ~ Gender + AgeG, data=data_ICU_H2,
+                         dist = "lnorm")
+weibull.aft <- flexsurvreg(aft  ~ Gender + AgeG, data=data_ICU_H2,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft$AIC, exp.aft$AIC, llogis.aft$AIC, lnorm.aft$AIC, weibull.aft$AIC))
+pander(df,style = "simple", caption = "H-ICUt")
+```
+
+```{r}
+flexsurvreg(aft  ~ Gender , data=data_ICU_H2, dist = "lnorm")
+flexsurvreg(aft  ~ Gender + sdlog(Gender), data=data_ICU_H2, dist = "lnorm")
+```
+
+# H2 - RD BP5
+```{r}
+#Model
+aft<- with(data_H2_RD,  Surv (data_H2_RD$times,data_H2_RD$outcome==1))
+
+gmma.aft <- flexsurvreg(aft  ~ Gender + AgeG, data=data_H2_RD,
+                         dist = "gamma")
+exp.aft <- flexsurvreg(aft  ~ Gender + AgeG, data=data_H2_RD,
+                         dist = "exp")
+llogis.aft <- flexsurvreg(aft  ~ Gender + AgeG, data=data_H2_RD,
+                         dist = "llogis")
+lnorm.aft <- flexsurvreg(aft  ~ Gender + AgeG, data=data_H2_RD,
+                         dist = "lnorm")
+weibull.aft <- flexsurvreg(aft  ~ Gender + AgeG, data=data_H2_RD,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft$AIC, exp.aft$AIC, llogis.aft$AIC, lnorm.aft$AIC, weibull.aft$AIC))
+pander(df,style = "simple", caption = "H-ICUt")
+```
+```{r}
+flexsurvreg(aft  ~ Gender , data=data_H2_RD, dist = "lnorm")
+flexsurvreg(aft  ~ Gender + sdlog(Gender), data=data_H2_RD, dist = "lnorm")
+```
+
+
+#  BP5
+```{r}
+#Model
+aft<- with(data_BP5,  Surv (data_BP5$times,data_BP5$outcome==1))
+
+gmma.aft <- flexsurvreg(aft  ~ Gender + AgeG, data=data_BP5,
+                         dist = "gamma")
+exp.aft <- flexsurvreg(aft  ~ Gender + AgeG, data=data_BP5,
+                         dist = "exp")
+llogis.aft <- flexsurvreg(aft  ~ Gender + AgeG, data=data_BP5,
+                         dist = "llogis")
+lnorm.aft <- flexsurvreg(aft  ~ Gender + AgeG, data=data_BP5,
+                         dist = "lnorm")
+weibull.aft <- flexsurvreg(aft  ~ Gender + AgeG, data=data_BP5,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft$AIC, exp.aft$AIC, llogis.aft$AIC, lnorm.aft$AIC, weibull.aft$AIC))
+pander(df,style = "simple", caption = "H-ICUt")
+```
+
+```{r}
+flexsurvreg(aft  ~ Gender , data=data_BP5, dist = "lnorm")
+flexsurvreg(aft  ~ Gender + sdlog(Gender), data=data_BP5, dist = "lnorm")
+```
+
+
+# ICU - RD BP2
+
+```{r}
+#Model
+aft<- with(data_ICU_RD,  Surv (data_ICU_RD$times,data_ICU_RD$outcome==1))
+
+gmma.aft <- flexsurvreg(aft ~ Gender , data=data_ICU_RD,
+                         dist = "gamma")
+exp.aft <- flexsurvreg(aft ~ Gender , data=data_ICU_RD,
+                         dist = "exp")
+llogis.aft <- flexsurvreg(aft  ~ Gender , data=data_ICU_RD,
+                         dist = "llogis")
+lnorm.aft <- flexsurvreg(aft  ~ Gender , data=data_ICU_RD,
+                         dist = "lnorm")
+weibull.aft <- flexsurvreg(aft  ~ Gender , data=data_ICU_RD,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft$AIC, exp.aft$AIC, llogis.aft$AIC, lnorm.aft$AIC, weibull.aft$AIC))
+pander(df,style = "simple", caption = "H-ICUt")
+```
+
+```{r}
+lnorm.aft
+```
+
+
+```{r}
+flexsurvreg(aft  ~ Gender , data=data_ICU_RD, dist = "lnorm")
+flexsurvreg(aft  ~ Gender + sdlog(Gender), data=data_ICU_RD, dist = "lnorm")
+```
+
+# ICU - Hf BP4
+```{r}
+#Model
+aft<- with(data_ICU_Hf,  Surv (data_ICU_Hf$times,data_ICU_Hf$outcome==1))
+
+gmma.aft <- flexsurvreg(aft ~ Gender, data=data_ICU_Hf,
+                         dist = "gamma")
+exp.aft <- flexsurvreg(aft  ~ Gender , data=data_ICU_Hf,
+                         dist = "exp")
+llogis.aft <- flexsurvreg(aft  ~ Gender , data=data_ICU_Hf,
+                         dist = "llogis")
+lnorm.aft <- flexsurvreg(aft  ~ Gender, data=data_ICU_Hf,
+                         dist = "lnorm")
+weibull.aft <- flexsurvreg(aft  ~ Gender , data=data_ICU_Hf,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft$AIC, exp.aft$AIC, llogis.aft$AIC, lnorm.aft$AIC, weibull.aft$AIC))
+pander(df,style = "simple", caption = "H-ICUt")
+```
+
+```{r}
+lnorm.aft
+```
+
+
+```{r}
+flexsurvreg(aft  ~ Gender , data=data_ICU_Hf, dist = "lnorm")
+flexsurvreg(aft  ~ Gender + sdlog(Gender), data=data_ICU_Hf, dist = "lnorm")
+```
+
+# Hf - RD BP4
+```{r}
+#Model
+aft<- with(data_Hf_RD,  Surv (data_Hf_RD$times,data_Hf_RD$outcome==1))
+
+gmma.aft <- flexsurvreg(aft ~ Gender, data=data_Hf_RD,
+                         dist = "gamma")
+exp.aft <- flexsurvreg(aft  ~ Gender , data=data_Hf_RD,
+                         dist = "exp")
+llogis.aft <- flexsurvreg(aft  ~ Gender , data=data_Hf_RD,
+                         dist = "llogis")
+lnorm.aft <- flexsurvreg(aft  ~ Gender , data=data_Hf_RD,
+                         dist = "lnorm")
+weibull.aft <- flexsurvreg(aft  ~ Gender , data=data_Hf_RD,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft$AIC, exp.aft$AIC, llogis.aft$AIC, lnorm.aft$AIC, weibull.aft$AIC))
+pander(df,style = "simple", caption = "H-ICUt")
+```
+```{r}
+lnorm.aft 
+```
+
+
+```{r}
+flexsurvreg(aft  ~ Gender , data=data_Hf_RD, dist = "lnorm")
+flexsurvreg(aft  ~ Gender + sdlog(Gender), data=data_Hf_RD, dist = "lnorm")
+```
+
+#  BP4
+```{r}
+#Model
+aft<- with(data_BP4,  Surv (data_BP4$times,data_BP4$outcome==1))
+
+gmma.aft <- flexsurvreg(aft ~ Gender, data=data_BP4,
+                         dist = "gamma")
+exp.aft <- flexsurvreg(aft  ~ Gender, data=data_BP4,
+                         dist = "exp")
+llogis.aft <- flexsurvreg(aft  ~ Gender , data=data_BP4,
+                         dist = "llogis")
+lnorm.aft <- flexsurvreg(aft  ~ Gender , data=data_BP4,
+                         dist = "lnorm")
+weibull.aft <- flexsurvreg(aft  ~ Gender, data=data_BP4,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft$AIC, exp.aft$AIC, llogis.aft$AIC, lnorm.aft$AIC, weibull.aft$AIC))
+pander(df,style = "simple", caption = "H-ICUt")
+```
+
+```{r}
+lnorm.aft 
+```
+
+
+```{r}
+flexsurvreg(aft  ~ Gender , data=data_BP4, dist = "lnorm")
+flexsurvreg(aft  ~ Gender + sdlog(Gender), data=data_BP4, dist = "lnorm")
+```
+
+# ICU - Ht BP6
+```{r}
+#Model
+aft<- with(data_ICU_Ht,  Surv (data_ICU_Ht$times,data_ICU_Ht$outcome==1))
+
+gmma.aft <- flexsurvreg(aft ~ Gender + AgeG, data=data_ICU_Ht,
+                         dist = "gamma")
+exp.aft <- flexsurvreg(aft  ~ Gender + AgeG, data=data_ICU_Ht,
+                         dist = "exp")
+llogis.aft <- flexsurvreg(aft  ~ Gender + AgeG, data=data_ICU_Ht,
+                         dist = "llogis")
+lnorm.aft <- flexsurvreg(aft ~ Gender + AgeG, data=data_ICU_Ht,
+                         dist = "lnorm")
+weibull.aft <- flexsurvreg(aft  ~ Gender + AgeG, data=data_ICU_Ht,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft$AIC, exp.aft$AIC, llogis.aft$AIC, lnorm.aft$AIC, weibull.aft$AIC))
+pander(df,style = "simple", caption = "H-ICUt")
+```
+
+```{r}
+flexsurvreg(aft  ~ Gender , data=data_ICU_Ht, dist = "lnorm")
+flexsurvreg(aft  ~ Gender + sdlog(Gender), data= data_ICU_Ht, dist = "lnorm")
+```
+
+
+
+# Ht - ICU2 BP6
+
+```{r}
+#Model
+aft<- with(data_H_ICU2,  Surv (data_H_ICU2$times,data_H_ICU2$outcome==1))
+
+gmma.aft <- flexsurvreg(aft ~ Gender + AgeG, data=data_H_ICU2,
+                         dist = "gamma")
+exp.aft <- flexsurvreg(aft  ~ Gender + AgeG, data=data_H_ICU2,
+                         dist = "exp")
+llogis.aft <- flexsurvreg(aft  ~ Gender + AgeG, data=data_H_ICU2,
+                         dist = "llogis")
+lnorm.aft <- flexsurvreg(aft  ~ Gender + AgeG, data=data_H_ICU2,
+                         dist = "lnorm")
+weibull.aft <- flexsurvreg(aft  ~ Gender + AgeG, data=data_H_ICU2,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft$AIC, exp.aft$AIC, llogis.aft$AIC, lnorm.aft$AIC, weibull.aft$AIC))
+pander(df,style = "simple", caption = "H-ICUt")
+```
+
+```{r}
+flexsurvreg(aft  ~ Gender , data=data_H_ICU2, dist = "lnorm")
+flexsurvreg(aft  ~ Gender + sdlog(Gender), data=data_H_ICU2, dist = "lnorm")
+```
+
+
+
+# ICU2 - RD BP6
+```{r}
+#Model
+aft<- with(data_ICU2_RD,  Surv (data_ICU2_RD$times,data_ICU2_RD$outcome==1))
+
+gmma.aft <- flexsurvreg(aft ~ Gender + AgeG, data=data_ICU2_RD,
+                         dist = "gamma")
+exp.aft <- flexsurvreg(aft ~ Gender + AgeG, data=data_ICU2_RD,
+                         dist = "exp")
+llogis.aft <- flexsurvreg(aft  ~ Gender + AgeG, data=data_ICU2_RD,
+                         dist = "llogis")
+lnorm.aft <- flexsurvreg(aft  ~ Gender + AgeG, data=data_ICU2_RD,
+                         dist = "lnorm")
+weibull.aft <- flexsurvreg(aft  ~ Gender + AgeG, data=data_ICU2_RD,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft$AIC, exp.aft$AIC, llogis.aft$AIC, lnorm.aft$AIC, weibull.aft$AIC))
+pander(df,style = "simple", caption = "H-ICUt")
+```
+
+```{r}
+flexsurvreg(aft  ~ Gender , data=data_ICU2_RD, dist = "lnorm")
+flexsurvreg(aft  ~ Gender + sdlog(Gender), data=data_ICU2_RD, dist = "lnorm")
+```
+
+#  BP6
+```{r}
+#Model
+aft<- with(data_BP6,  Surv (data_BP6$times,data_BP6$outcome==1))
+
+gmma.aft <- flexsurvreg(aft ~ Gender + AgeG, data=data_BP6,
+                         dist = "gamma")
+exp.aft <- flexsurvreg(aft  ~ Gender + AgeG, data=data_BP6,
+                         dist = "exp")
+llogis.aft <- flexsurvreg(aft  ~ Gender + AgeG, data=data_BP6,
+                         dist = "llogis")
+lnorm.aft <- flexsurvreg(aft  ~ Gender + AgeG, data=data_BP6,
+                         dist = "lnorm")
+weibull.aft <- flexsurvreg(aft  ~ Gender + AgeG, data=data_BP6,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft$AIC, exp.aft$AIC, llogis.aft$AIC, lnorm.aft$AIC, weibull.aft$AIC))
+pander(df,style = "simple", caption = "H-ICUt")
+```
+
+```{r}
+flexsurvreg(aft  ~ Gender , data=data_BP6, dist = "lnorm")
+flexsurvreg(aft  ~ Gender + sdlog(Gender), data=data_BP6, dist = "lnorm")
+```

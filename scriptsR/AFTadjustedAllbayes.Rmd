@@ -1,0 +1,281 @@
+---
+title: "uncoverAFT Bayesian approach"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library("rjags")
+library("tidyverse")
+library("readstata13")
+library("R2jags")
+library("lattice")
+library("tictoc")
+```
+
+tutorial1: https://jfiksel.github.io/2017-05-24-waic_aft_models_jags/
+
+
+# Data base
+
+```{r}
+data <- read.csv("/home/lina/Documents/unCoVer/uncoverP1LoS/dataBases/dataBaseAnalysis13.csv")
+
+
+
+data<-data %>% filter( tRD <100)
+data$AgeG <- case_when(data$AgeYears > 1 & data$AgeYears <= 25 ~ "1",
+                       data$AgeYears > 25 & data$AgeYears <= 50 ~ "2",
+                         data$AgeYears > 50 & data$AgeYears <= 75 ~ "3",
+                         data$AgeYears > 75 & data$AgeYears <= 100 ~ "4")
+data$outcome <- rep(1,nrow(data))
+data$outcomeRD <- case_when(data$X1BedPathway == 1 ~ "R",
+                            data$X1BedPathway == 2 ~ "D",
+                            data$X1BedPathway == 3 ~ "R",
+                            data$X1BedPathway == 4 ~ "D",
+                            data$X1BedPathway == 5 ~ "R",
+                            data$X1BedPathway == 6 ~ "R",
+                            data$X1BedPathway == 7 ~ "D",
+                            data$X1BedPathway == 8 ~ "R",
+                            data$X1BedPathway == 9 ~ "R",
+                            data$X1BedPathway == 10 ~ "D",
+                            data$X1BedPathway == 11 ~ "D",
+                            data$X1BedPathway == 12 ~ "D")
+
+data$X1BedPathway <- as.factor(data$X1BedPathway)
+data$PeaksValleys2 <- as.factor(data$PeaksValleys2)
+data$Waves <- as.factor(data$Waves)
+```
+
+
+# ICU -RD model
+
+```{r}
+#Models data
+# data model ICU -> RD
+data_ICU_RD<-data %>% filter(X2BedPathway == 2)
+data_ICU_RD$times<-data_ICU_RD$tRD
+```
+
+```{r}
+data_scenario_ICU <- data_ICU_RD %>% 
+  filter( !is.na(times)& 
+            !is.na(outcomeRD) & 
+            !is.na(AgeG) & 
+            !is.na(Gender) & 
+            !is.na(Waves) & 
+            !is.na(PeaksValleys2) & 
+            !is.na(Vaccination))
+
+data_scenario_ICU2 <- model.matrix(~ outcomeRD + AgeG + Gender+ Waves + PeaksValleys2 + Vaccination, data = data_scenario_ICU ) |> data.frame()
+data_scenario_ICU2$times <-data_scenario_ICU$times
+data_scenario_ICU2$outcome <-data_scenario_ICU$outcome
+
+data_scenario_ICU2
+```
+
+```{r}
+# Models for events from ICU
+#
+data_model_ICU <- data_scenario_ICU2 %>% 
+  mutate(t=times, 
+         x= recode(outcome, `0` = "1", `1`="0"))
+data_model_ICU
+```
+
+
+## Data
+
+```{r}
+
+data_model_ICU_jags <- data_model_ICU %>% 
+                     filter(times>0) %>% 
+                     dplyr::select(times, 
+                                   outcome,  
+                                   x, # es la negacion outcomeHR
+                                   t, 
+                                    outcomeRDR, AgeG2, AgeG3, AgeG4, GenderM, Waves2, Waves3, Waves4, Waves5, PeaksValleys2valley, VaccinationYes) %>% 
+                     mutate( t = replace( t, outcome==0, NA) ) 
+
+```
+
+
+### From ICU to RD
+
+```{r}
+model_ICU_lnorm <- function () {
+  
+  for (i in 1:length(t)){
+    
+    c[i] <- times[i]+ outcome[i]	
+    x[i] ~ dinterval(t[i], c[i])                       #x=1 if t is censored, 0 otherwise; if x=1, then t>c
+    t[i] ~ dlnorm(mu[i], tau)                         #t is right-censored observation 
+    
+    mu[i] <- beta[1] + beta[2]*outcomeRDR[i] + beta[3]*AgeG2[i]  + beta[4]*AgeG3[i] + beta[5]*AgeG4[i] + beta[6]*GenderM[i] + beta[7]*Waves2[i] + beta[8]*Waves3[i]+ beta[9]*Waves4[i] + beta[10]*Waves5[i] + beta[11]*PeaksValleys2valley[i]+ beta[12]*VaccinationYes[i] 
+    
+   # t.pred[i] ~ dweib(b, lambda[i])                     #prediction of length of day
+  }
+  
+  beta[1:12]~dmnorm(m.a[1:12],t.a[1:12,1:12])          #multivariate normal prior for beta
+  t.a[1,1]<-0.1
+  t.a[2,2]<-0.1
+  t.a[3,3]<-0.1
+  t.a[4,4]<-0.1
+  t.a[5,5]<-0.1
+  t.a[6,6]<-0.1
+  t.a[7,7]<-0.1
+  t.a[8,8]<-0.1
+  t.a[9,9]<-0.1
+  t.a[10,10]<-0.1
+  t.a[11,11]<-0.1
+  t.a[12,12]<-0.1
+  
+  for (i in 1:11)  {
+    for (j in (i+1):12){
+      t.a[j,i]   <-0}       
+    
+    for (j in 1:i){
+      t.a[j,i+1]  <-0}
+  }
+  
+  for (i in 1:12)  {
+    m.a[i] <- 0
+  }
+  
+  tau ~ dunif(0, 10)                                      #uniform prior for tau
+  
+}
+```
+
+```{r}
+params <- c("beta",  "tau")
+```
+
+```{r}
+# running the model and generating posteriors
+tic() # measures time
+jags.fit.model.ICU.lnorm <- jags.parallel(data=data_model_ICU_jags, inits=NULL, params, 
+                                          model.file=model_ICU_lnorm,  n.chains = 3, 
+                                          n.thin=4, n.iter=50, 
+                                          n.burnin=5, DIC=TRUE, 
+                                          jags.module = c("glm", "dic"))
+toc()
+```
+
+
+
+# H -RD model
+
+```{r}
+#Models data
+# data model ICU -> RD
+data_H_RD<-data %>% filter(X2BedPathway == 1)
+data_H_RD$times<-data_H_RD$tRD
+```
+
+```{r}
+data_scenario_H <- data_H_RD %>% 
+  filter( !is.na(times)& 
+            !is.na(outcomeRD) & 
+            !is.na(AgeG) & 
+            !is.na(Gender) & 
+            !is.na(Waves) & 
+            !is.na(PeaksValleys2) & 
+            !is.na(Vaccination))
+
+data_scenario_H2 <- model.matrix(~ outcomeRD + AgeG + Gender+ Waves + PeaksValleys2 + Vaccination, data = data_scenario_H ) |> data.frame()
+data_scenario_H2$times <-data_scenario_H$times
+data_scenario_H2$outcome <-data_scenario_H$outcome
+
+data_scenario_H2
+```
+
+```{r}
+# Models for events from ICU
+#
+data_model_H <- data_scenario_H2 %>% 
+  mutate(t=times, 
+         x= recode(outcome, `0` = "1", `1`="0"))
+data_model_H
+```
+
+```{r}
+
+data_model_H_jags <- data_model_H %>% 
+                     filter(times>0) %>% 
+                     dplyr::select(times, 
+                                   outcome,  
+                                   x, # es la negacion outcomeHR
+                                   t, 
+                                    outcomeRDR, AgeG2, AgeG3, AgeG4, GenderM, Waves2, Waves3, Waves4, Waves5, PeaksValleys2valley, VaccinationYes) %>% 
+                     mutate( t = replace( t, outcome==0, NA) ) 
+
+```
+
+
+```{r}
+model_H_lnorm <- function () {
+  
+  for (i in 1:length(t)){
+    
+    c[i] <- times[i]+ outcome[i]	
+    x[i] ~ dinterval(t[i], c[i])                       #x=1 if t is censored, 0 otherwise; if x=1, then t>c
+    t[i] ~ dlnorm(mu[i], tau)                         #t is right-censored observation 
+    
+    mu[i] <- beta[1] + beta[2]*outcomeRDR[i] + beta[3]*AgeG2[i]  + beta[4]*AgeG3[i] + beta[5]*AgeG4[i] + beta[6]*GenderM[i] + beta[7]*Waves2[i] + beta[8]*Waves3[i]+ beta[9]*Waves4[i] + beta[10]*Waves5[i] + beta[11]*PeaksValleys2valley[i]+ beta[12]*VaccinationYes[i] 
+    
+   # t.pred[i] ~ dweib(b, lambda[i])                     #prediction of length of day
+  }
+  
+  beta[1:12]~dmnorm(m.a[1:12],t.a[1:12,1:12])          #multivariate normal prior for beta
+  t.a[1,1]<-0.1
+  t.a[2,2]<-0.1
+  t.a[3,3]<-0.1
+  t.a[4,4]<-0.1
+  t.a[5,5]<-0.1
+  t.a[6,6]<-0.1
+  t.a[7,7]<-0.1
+  t.a[8,8]<-0.1
+  t.a[9,9]<-0.1
+  t.a[10,10]<-0.1
+  t.a[11,11]<-0.1
+  t.a[12,12]<-0.1
+  
+  for (i in 1:11)  {
+    for (j in (i+1):12){
+      t.a[j,i]   <-0}       
+    
+    for (j in 1:i){
+      t.a[j,i+1]  <-0}
+  }
+  
+  for (i in 1:12)  {
+    m.a[i] <- 0
+  }
+  
+  tau ~ dunif(0, 10)                                      #uniform prior for tau
+  
+}
+```
+
+```{r}
+params <- c("beta",  "tau")
+```
+
+```{r}
+# running the model and generating posteriors
+tic() # measures time
+jags.fit.model.H.lnorm <- jags.parallel(data=data_model_H_jags, inits=NULL, params, 
+                                          model.file=model_H_lnorm,  n.chains = 3, 
+                                          n.thin=4, n.iter=50, 
+                                          n.burnin=5, DIC=TRUE, 
+                                          jags.module = c("glm", "dic"))
+toc()
+```
+
+
+
+

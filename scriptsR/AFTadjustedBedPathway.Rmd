@@ -1,0 +1,206 @@
+---
+title: "AFTs_frequentist"
+author: "Lina M. Ruiz G."
+date: "3/24/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(dplyr)
+library(survival)
+library(dplyr)
+library(survminer)
+library(naniar)
+library(MASS)
+library(flexsurv)
+library(tidyverse)
+library(stargazer)
+library(pander)
+library(data.table)
+library(data.table)
+```
+
+# data
+
+
+
+```{r}
+data <- read.csv("/home/lina/Documents/UnCover/uncoverP1LoS/dataBases/dataBaseAnalysis11.csv")
+data<-data %>% filter( tRD <100)
+data$AgeG <- case_when(data$AgeYears > 1 & data$AgeYears <= 50 ~ "1",
+                         data$AgeYears > 50 & data$AgeYears <= 64 ~ "2",
+                         data$AgeYears > 64 & data$AgeYears <= 74 ~ "3",
+                         data$AgeYears > 74 ~ "4")
+data$outcome <- rep(1,nrow(data))
+data$X2BedPathway <- as.factor(data$X2BedPathway)
+data$X1BedPathway <- as.factor(data$X1BedPathway)
+```
+
+```{r}
+
+# LoS in H for BP 1, 3, and 4
+
+data_H_1<-data %>% filter(X2BedPathway == 1)
+data_H_1$times<-data_H_1$tRD
+
+data_H_2<-data %>% filter(X2BedPathway == 3)
+data_H_2$times<-data_H_2$tICUf
+
+data_H_3<-data %>% filter(X2BedPathway == 4)
+data_H_3$times<-data_H_3$tRD-data_H_3$tHf
+
+data_H <- rbind(data_H_1,data_H_2,data_H_3)
+
+data_H <- data_H |> mutate(X2BedPathway=X2BedPathway |> as.character() |> as.factor())
+data_H <- data_H |> mutate(X1BedPathway=X1BedPathway |> as.character() |> as.factor())
+
+# LoS in ICU for BP 2, 3, and 4
+
+data_ICU_1<-data %>% filter(X2BedPathway == 2)
+data_ICU_1$times<-data_ICU_1$tRD
+
+data_ICU_2<-data %>% filter(X2BedPathway == 3)
+data_ICU_2$times<-data_ICU_2$tRD-data_ICU_2$tICUf
+
+data_ICU_3<-data %>% filter(X2BedPathway == 4)
+data_ICU_3$times<-data_ICU_3$tHf
+
+data_ICU <- rbind(data_ICU_1,data_ICU_2,data_ICU_3)
+
+data_ICU <- data_ICU |> mutate(X2BedPathway=X2BedPathway |> as.character() |> as.factor())
+data_ICU <- data_ICU |> mutate(X1BedPathway=X1BedPathway |> as.character() |> as.factor())
+
+```
+
+```{r}
+table(data_ICU$X2BedPathway)
+table(data_H$X2BedPathway)
+```
+
+
+# X2BedPathway Hospital
+
+
+```{r}
+#Model
+aft_H<- with(data_H,  Surv (data_H$times,data_H$outcome==1))
+
+gmma.aft_H <- flexsurvreg(aft_H  ~ X2BedPathway, data=data_H,
+                         dist = "gamma")
+exp.aft_H <- flexsurvreg(aft_H  ~ X2BedPathway, data=data_H,
+                         dist = "exp")
+llogis.aft_H <- flexsurvreg(aft_H  ~ X2BedPathway, data=data_H,
+                         dist = "llogis")
+lnorm.aft_H <- flexsurvreg(aft_H  ~ X2BedPathway, data=data_H,
+                         dist = "lnorm")
+weibull.aft_H <- flexsurvreg(aft_H  ~ X2BedPathway, data=data_H,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft_H$AIC, exp.aft_H$AIC, llogis.aft_H$AIC, lnorm.aft_H$AIC, weibull.aft_H$AIC))
+pander(df,style = "simple", caption = "")
+```
+
+
+```{r}
+aft_H<- with(data_H,  Surv (data_H$times,data_H$outcome==1))
+flexsurvreg(aft_H  ~ X2BedPathway + sdlog(X2BedPathway), data=data_H,
+                         dist = "lnorm")
+```
+
+```{r}
+flexsurvreg(aft_H  ~ X2BedPathway , data=data_H,
+                         dist = "lnorm")
+```
+
+
+# X2BedPathway ICU
+
+
+```{r}
+#Model
+aft_ICU<- with(data_ICU,  Surv (data_ICU$times,data_ICU$outcome==1))
+
+gmma.aft_ICU <- flexsurvreg(aft_ICU  ~ X2BedPathway, data=data_ICU,
+                         dist = "gamma")
+exp.aft_ICU <- flexsurvreg(aft_ICU  ~ X2BedPathway, data=data_ICU,
+                         dist = "exp")
+llogis.aft_ICU <- flexsurvreg(aft_ICU  ~ X2BedPathway, data=data_ICU,
+                         dist = "llogis")
+lnorm.aft_ICU <- flexsurvreg(aft_ICU  ~ X2BedPathway, data=data_ICU,
+                         dist = "lnorm")
+weibull.aft_ICU <- flexsurvreg(aft_ICU  ~ X2BedPathway, data=data_ICU,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft_ICU$AIC, exp.aft_ICU$AIC, llogis.aft_ICU$AIC, lnorm.aft_ICU$AIC, weibull.aft_ICU$AIC))
+pander(df, style = "simple", caption = "")
+```
+
+
+```{r}
+flexsurvreg(aft_ICU  ~ X2BedPathway + sdlog(X2BedPathway), data=data_ICU, dist = "lnorm")
+```
+```{r}
+flexsurvreg(aft_ICU  ~ X2BedPathway , data=data_ICU, dist = "lnorm")
+```
+
+
+
+# X1BedPathway Hospital
+
+
+```{r}
+#Model
+aft_H<- with(data_H,  Surv (data_H$times,data_H$outcome==1))
+
+gmma.aft_H <- flexsurvreg(aft_H  ~ X1BedPathway, data=data_H,
+                         dist = "gamma")
+exp.aft_H <- flexsurvreg(aft_H  ~ X1BedPathway, data=data_H,
+                         dist = "exp")
+llogis.aft_H <- flexsurvreg(aft_H  ~ X1BedPathway, data=data_H,
+                         dist = "llogis")
+lnorm.aft_H <- flexsurvreg(aft_H  ~ X1BedPathway, data=data_H,
+                         dist = "lnorm")
+weibull.aft_H <- flexsurvreg(aft_H  ~ X1BedPathway, data=data_H,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft_H$AIC, exp.aft_H$AIC, llogis.aft_H$AIC, lnorm.aft_H$AIC, weibull.aft_H$AIC))
+pander(df,style = "simple", caption = "")
+```
+
+
+```{r}
+flexsurvreg(aft_H  ~ X1BedPathway + sdlog(X1BedPathway), data=data_H,
+                         dist = "lnorm")
+```
+
+# X1BedPathway ICU
+
+
+```{r}
+#Model
+aft_ICU<- with(data_ICU,  Surv (data_ICU$times,data_ICU$outcome==1))
+
+gmma.aft_ICU <- flexsurvreg(aft_ICU  ~ X1BedPathway, data=data_ICU,
+                         dist = "gamma")
+exp.aft_ICU <- flexsurvreg(aft_ICU  ~ X1BedPathway, data=data_ICU,
+                         dist = "exp")
+llogis.aft_ICU <- flexsurvreg(aft_ICU  ~ X1BedPathway, data=data_ICU,
+                         dist = "llogis")
+lnorm.aft_ICU <- flexsurvreg(aft_ICU  ~ X1BedPathway, data=data_ICU,
+                         dist = "lnorm")
+weibull.aft_ICU <- flexsurvreg(aft_ICU  ~ X1BedPathway, data=data_ICU,
+                         dist = "weibull")
+
+df<-data.frame(Model = c("Gamma", "Exponential","LogLogistic","lognormal","weibull"),AIC = c( gmma.aft_ICU$AIC, exp.aft_ICU$AIC, llogis.aft_ICU$AIC, lnorm.aft_ICU$AIC, weibull.aft_ICU$AIC))
+pander(df, style = "simple", caption = "")
+```
+
+
+```{r}
+flexsurvreg(aft_ICU  ~ X1BedPathway + sdlog(X1BedPathway), data=data_ICU,
+                         dist = "lnorm")
+```
