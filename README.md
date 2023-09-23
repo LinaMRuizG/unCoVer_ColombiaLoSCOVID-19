@@ -1,5 +1,5 @@
 # Survival analysis of  bed pathways and hospital Length of Stay (LoS):  A non-concurrent cohort study of Colombia COVID-19 patients. An unCoVer network project
-In this project is estimated the Length of Stay in hospital bed types (i.e., Hospital and ICU) of Colombia COVID-19 patients. This is a survival analysis using Accelerated Failure Time (AFT) models.
+In this project is estimated the Length of Stay in hospital bed types (i.e., Hospital and ICU) of Colombia COVID-19 patients. This is a survival analysis using Accelerated Failure Time (AFT) models. See https://journals.plos.org/plosone/article/metrics?id=10.1371/journal.pone.0278429
 
 ## Description of files in this repository
 
